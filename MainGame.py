@@ -4,12 +4,20 @@ import os
 import random
 import csv
 import button
+import yaml
+import Water
+import Exit
+import Decoration
+import ItemBox
+# import Soldier
+with open(r'config.yaml') as file:
+    config = yaml.safe_load(file)
 
 mixer.init()
 pygame.init()
 
 
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = config.get("SCREEN_WIDTH")
 SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -17,21 +25,21 @@ pygame.display.set_caption('Shooter')
 
 #set framerate
 clock = pygame.time.Clock()
-FPS = 60
+FPS = config.get("FPS")
 
 #define game variables
-GRAVITY = 0.75
-SCROLL_THRESH = 200
-ROWS = 16
-COLS = 150
+GRAVITY = config.get("GRAVITY")
+SCROLL_THRESH = config.get("SCROLL_THRESH")
+ROWS = config.get("ROWS")
+COLS = config.get("COLS")
 TILE_SIZE = SCREEN_HEIGHT // ROWS
-TILE_TYPES = 21
-MAX_LEVELS = 3
-screen_scroll = 0
-bg_scroll = 0
-level = 1
-start_game = False
-start_intro = False
+TILE_TYPES = config.get("TILE_TYPES")
+MAX_LEVELS = config.get("MAX_LEVELS")
+screen_scroll = config.get("screen_scroll")
+bg_scroll = config.get("bg_scroll")
+level = config.get("level")
+start_game = config.get("start_game")
+start_intro = config.get("start_intro")
 
 
 #define player action variables
@@ -159,7 +167,7 @@ class Soldier(pygame.sprite.Sprite):
 		self.vision = pygame.Rect(0, 0, 150, 20)
 		self.idling = False
 		self.idling_counter = 0
-		
+
 		#load all images for the players
 		animation_types = ['Idle', 'Run', 'Jump', 'Death']
 		for animation in animation_types:
@@ -377,10 +385,10 @@ class World():
 					if tile >= 0 and tile <= 8:
 						self.obstacle_list.append(tile_data)
 					elif tile >= 9 and tile <= 10:
-						water = Water(img, x * TILE_SIZE, y * TILE_SIZE)
+						water = Water.Water(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						water_group.add(water)
 					elif tile >= 11 and tile <= 14:
-						decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
+						decoration = Decoration.Decoration(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						decoration_group.add(decoration)
 					elif tile == 15:#create player
 						player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 1.65, 5, 20, 5)
@@ -389,16 +397,16 @@ class World():
 						enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
 						enemy_group.add(enemy)
 					elif tile == 17:#create ammo box
-						item_box = ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 18:#create grenade box
-						item_box = ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 19:#create health box
-						item_box = ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 20:#create exit
-						exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
+						exit = Exit.Exit(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						exit_group.add(exit)
 
 		return player, health_bar
@@ -408,66 +416,6 @@ class World():
 		for tile in self.obstacle_list:
 			tile[1][0] += screen_scroll
 			screen.blit(tile[0], tile[1])
-
-
-class Decoration(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-
-class Water(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-class Exit(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-
-class ItemBox(pygame.sprite.Sprite):
-	def __init__(self, item_type, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.item_type = item_type
-		self.image = item_boxes[self.item_type]
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-
-	def update(self):
-		#scroll
-		self.rect.x += screen_scroll
-		#check if the player has picked up the box
-		if pygame.sprite.collide_rect(self, player):
-			#check what kind of box it was
-			if self.item_type == 'Health':
-				player.health += 25
-				if player.health > player.max_health:
-					player.health = player.max_health
-			elif self.item_type == 'Ammo':
-				player.ammo += 15
-			elif self.item_type == 'Grenade':
-				player.grenades += 3
-			#delete the item box
-			self.kill()
-
 
 class HealthBar():
 	def __init__(self, x, y, health, max_health):
@@ -716,10 +664,10 @@ while run:
 		bullet_group.update()
 		grenade_group.update()
 		explosion_group.update()
-		item_box_group.update()
-		decoration_group.update()
-		water_group.update()
-		exit_group.update()
+		item_box_group.update(screen_scroll, player)
+		decoration_group.update(screen_scroll)
+		water_group.update(screen_scroll)
+		exit_group.update(screen_scroll)
 		bullet_group.draw(screen)
 		grenade_group.draw(screen)
 		explosion_group.draw(screen)
