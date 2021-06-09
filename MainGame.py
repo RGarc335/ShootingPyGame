@@ -9,7 +9,6 @@ import Water
 import Exit
 import Decoration
 import ItemBox
-# import Soldier
 with open(r'config.yaml') as file:
     config = yaml.safe_load(file)
 
@@ -80,8 +79,10 @@ for x in range(TILE_TYPES):
 	img_list.append(img)
 #bullet
 bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+enemy_bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+player_bullet_img = pygame.image.load('img/icons/magic_bullet.png').convert_alpha()
 #grenade
-grenade_img = pygame.image.load('img/icons/grenade.png').convert_alpha()
+grenade_img = pygame.image.load('img/icons/power_potion.png').convert_alpha()
 #pick up boxes
 health_box_img = pygame.image.load('img/icons/health_box.png').convert_alpha()
 ammo_box_img = pygame.image.load('img/icons/ammo_box.png').convert_alpha()
@@ -280,10 +281,13 @@ class Soldier(pygame.sprite.Sprite):
 
 
 
-	def shoot(self):
+	def shoot(self, playerBool):
 		if self.shoot_cooldown == 0 and self.ammo > 0:
 			self.shoot_cooldown = 20
-			bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
+			if playerBool == True:
+				bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, player_bullet_img)
+			else:
+				bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, enemy_bullet_img)
 			bullet_group.add(bullet)
 			#reduce ammo
 			self.ammo -= 1
@@ -301,7 +305,7 @@ class Soldier(pygame.sprite.Sprite):
 				#stop running and face the player
 				self.update_action(0)#0: idle
 				#shoot
-				self.shoot()
+				self.shoot(False)
 			else:
 				if self.idling == False:
 					if self.direction == 1:
@@ -391,10 +395,10 @@ class World():
 						decoration = Decoration.Decoration(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						decoration_group.add(decoration)
 					elif tile == 15:#create player
-						player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 1.65, 5, 20, 5)
+						player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, .9, 5, 20, 5)
 						health_bar = HealthBar(10, 10, player.health, player.health)
 					elif tile == 16:#create enemies
-						enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
+						enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.3, 2, 20, 0)
 						enemy_group.add(enemy)
 					elif tile == 17:#create ammo box
 						item_box = ItemBox.ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
@@ -435,10 +439,10 @@ class HealthBar():
 
 
 class Bullet(pygame.sprite.Sprite):
-	def __init__(self, x, y, direction):
+	def __init__(self, x, y, direction, bulletType):
 		pygame.sprite.Sprite.__init__(self)
 		self.speed = 10
-		self.image = bullet_img
+		self.image = bulletType
 		self.rect = self.image.get_rect()
 		self.rect.center = (x, y)
 		self.direction = direction
@@ -470,7 +474,7 @@ class Bullet(pygame.sprite.Sprite):
 class Grenade(pygame.sprite.Sprite):
 	def __init__(self, x, y, direction):
 		pygame.sprite.Sprite.__init__(self)
-		self.timer = 100
+		self.timer = 60
 		self.vel_y = -11
 		self.speed = 7
 		self.image = grenade_img
@@ -625,7 +629,7 @@ run = True
 while run:
 
 	clock.tick(FPS)
-
+    #Start and Exit Screen
 	if start_game == False:
 		#draw menu
 		screen.fill(BG)
@@ -643,13 +647,13 @@ while run:
 		#show player health
 		health_bar.draw(player.health)
 		#show ammo
-		draw_text('AMMO: ', font, WHITE, 10, 35)
+		draw_text('Magic:', font, WHITE, 5, 30)
 		for x in range(player.ammo):
-			screen.blit(bullet_img, (90 + (x * 10), 40))
+			screen.blit(player_bullet_img, (110 + (x * 10), 50))
 		#show grenades
-		draw_text('GRENADES: ', font, WHITE, 10, 60)
+		draw_text('Potions:', font, WHITE, 5, 60)
 		for x in range(player.grenades):
-			screen.blit(grenade_img, (135 + (x * 15), 60))
+			screen.blit(grenade_img, (115 + (x * 15), 80))
 
 
 		player.update()
@@ -687,7 +691,7 @@ while run:
 		if player.alive:
 			#shoot bullets
 			if shoot:
-				player.shoot()
+				player.shoot(True)
 			#throw grenades
 			elif grenade and grenade_thrown == False and player.grenades > 0:
 				grenade = Grenade(player.rect.centerx + (0.5 * player.rect.size[0] * player.direction),\
@@ -697,6 +701,7 @@ while run:
 				player.grenades -= 1
 				grenade_thrown = True
 			if player.in_air:
+
 				player.update_action(2)#2: jump
 			elif moving_left or moving_right:
 				player.update_action(1)#1: run
