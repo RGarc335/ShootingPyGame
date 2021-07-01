@@ -4,12 +4,20 @@ import os
 import random
 import csv
 import button
+import yaml
+import datetime
+import Water
+import Exit
+import Decoration
+import ItemBox
+with open(r'config.yaml') as file:
+    config = yaml.safe_load(file)
 
 mixer.init()
 pygame.init()
 
 
-SCREEN_WIDTH = 800
+SCREEN_WIDTH = config.get("SCREEN_WIDTH")
 SCREEN_HEIGHT = int(SCREEN_WIDTH * 0.8)
 
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -17,22 +25,25 @@ pygame.display.set_caption('Shooter')
 
 #set framerate
 clock = pygame.time.Clock()
-FPS = 60
+FPS = config.get("FPS")
 
 #define game variables
-GRAVITY = 0.75
-SCROLL_THRESH = 200
-ROWS = 16
-COLS = 150
+GRAVITY = config.get("GRAVITY")
+SCROLL_THRESH = config.get("SCROLL_THRESH")
+ROWS = config.get("ROWS")
+COLS = config.get("COLS")
 TILE_SIZE = SCREEN_HEIGHT // ROWS
-TILE_TYPES = 21
-MAX_LEVELS = 3
-screen_scroll = 0
-bg_scroll = 0
-level = 1
-start_game = False
-start_intro = False
+TILE_TYPES = config.get("TILE_TYPES")
+MAX_LEVELS = config.get("MAX_LEVELS")
+screen_scroll = config.get("screen_scroll")
+bg_scroll = config.get("bg_scroll")
+level = config.get("level")
+start_game = config.get("start_game")
+start_intro = config.get("start_intro")
 
+# counter, text = 10, '10'.rjust(3)
+# pygame.time.set_timer(pygame.USEREVENT, 1000)
+start_ticks = pygame.time.get_ticks()  # starter tick
 
 #define player action variables
 moving_left = False
@@ -72,8 +83,10 @@ for x in range(TILE_TYPES):
 	img_list.append(img)
 #bullet
 bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+enemy_bullet_img = pygame.image.load('img/icons/bullet.png').convert_alpha()
+player_bullet_img = pygame.image.load('img/icons/magic_bullet.png').convert_alpha()
 #grenade
-grenade_img = pygame.image.load('img/icons/grenade.png').convert_alpha()
+grenade_img = pygame.image.load('img/icons/power_potion.png').convert_alpha()
 #pick up boxes
 health_box_img = pygame.image.load('img/icons/health_box.png').convert_alpha()
 ammo_box_img = pygame.image.load('img/icons/ammo_box.png').convert_alpha()
@@ -83,7 +96,6 @@ item_boxes = {
 	'Ammo'		: ammo_box_img,
 	'Grenade'	: grenade_box_img
 }
-
 
 #define colours
 BG = (144, 201, 120)
@@ -95,6 +107,13 @@ PINK = (235, 65, 54)
 
 #define font
 font = pygame.font.SysFont('Futura', 30)
+
+#timer clock
+timer_sec = 360
+timer_text = font.render("02:00", True, (255, 255, 255))
+timer = pygame.USEREVENT + 1
+pygame.time.set_timer(timer, 1000)
+current_best_time = 0
 
 def draw_text(text, font, text_col, x, y):
 	img = font.render(text, True, text_col)
@@ -159,7 +178,7 @@ class Soldier(pygame.sprite.Sprite):
 		self.vision = pygame.Rect(0, 0, 150, 20)
 		self.idling = False
 		self.idling_counter = 0
-		
+
 		#load all images for the players
 		animation_types = ['Idle', 'Run', 'Jump', 'Death']
 		for animation in animation_types:
@@ -272,10 +291,13 @@ class Soldier(pygame.sprite.Sprite):
 
 
 
-	def shoot(self):
+	def shoot(self, playerBool):
 		if self.shoot_cooldown == 0 and self.ammo > 0:
 			self.shoot_cooldown = 20
-			bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction)
+			if playerBool == True:
+				bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, player_bullet_img)
+			else:
+				bullet = Bullet(self.rect.centerx + (0.75 * self.rect.size[0] * self.direction), self.rect.centery, self.direction, enemy_bullet_img)
 			bullet_group.add(bullet)
 			#reduce ammo
 			self.ammo -= 1
@@ -293,7 +315,7 @@ class Soldier(pygame.sprite.Sprite):
 				#stop running and face the player
 				self.update_action(0)#0: idle
 				#shoot
-				self.shoot()
+				self.shoot(False)
 			else:
 				if self.idling == False:
 					if self.direction == 1:
@@ -377,28 +399,28 @@ class World():
 					if tile >= 0 and tile <= 8:
 						self.obstacle_list.append(tile_data)
 					elif tile >= 9 and tile <= 10:
-						water = Water(img, x * TILE_SIZE, y * TILE_SIZE)
+						water = Water.Water(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						water_group.add(water)
 					elif tile >= 11 and tile <= 14:
-						decoration = Decoration(img, x * TILE_SIZE, y * TILE_SIZE)
+						decoration = Decoration.Decoration(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						decoration_group.add(decoration)
 					elif tile == 15:#create player
-						player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, 1.65, 5, 20, 5)
+						player = Soldier('player', x * TILE_SIZE, y * TILE_SIZE, .9, 5, 20, 5)
 						health_bar = HealthBar(10, 10, player.health, player.health)
 					elif tile == 16:#create enemies
-						enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.65, 2, 20, 0)
+						enemy = Soldier('enemy', x * TILE_SIZE, y * TILE_SIZE, 1.3, 2, 20, 0)
 						enemy_group.add(enemy)
 					elif tile == 17:#create ammo box
-						item_box = ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Ammo', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 18:#create grenade box
-						item_box = ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Grenade', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 19:#create health box
-						item_box = ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE)
+						item_box = ItemBox.ItemBox('Health', x * TILE_SIZE, y * TILE_SIZE, item_boxes, TILE_SIZE)
 						item_box_group.add(item_box)
 					elif tile == 20:#create exit
-						exit = Exit(img, x * TILE_SIZE, y * TILE_SIZE)
+						exit = Exit.Exit(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE)
 						exit_group.add(exit)
 
 		return player, health_bar
@@ -408,66 +430,6 @@ class World():
 		for tile in self.obstacle_list:
 			tile[1][0] += screen_scroll
 			screen.blit(tile[0], tile[1])
-
-
-class Decoration(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-
-class Water(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-class Exit(pygame.sprite.Sprite):
-	def __init__(self, img, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.image = img
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-	def update(self):
-		self.rect.x += screen_scroll
-
-
-class ItemBox(pygame.sprite.Sprite):
-	def __init__(self, item_type, x, y):
-		pygame.sprite.Sprite.__init__(self)
-		self.item_type = item_type
-		self.image = item_boxes[self.item_type]
-		self.rect = self.image.get_rect()
-		self.rect.midtop = (x + TILE_SIZE // 2, y + (TILE_SIZE - self.image.get_height()))
-
-
-	def update(self):
-		#scroll
-		self.rect.x += screen_scroll
-		#check if the player has picked up the box
-		if pygame.sprite.collide_rect(self, player):
-			#check what kind of box it was
-			if self.item_type == 'Health':
-				player.health += 25
-				if player.health > player.max_health:
-					player.health = player.max_health
-			elif self.item_type == 'Ammo':
-				player.ammo += 15
-			elif self.item_type == 'Grenade':
-				player.grenades += 3
-			#delete the item box
-			self.kill()
-
 
 class HealthBar():
 	def __init__(self, x, y, health, max_health):
@@ -487,10 +449,10 @@ class HealthBar():
 
 
 class Bullet(pygame.sprite.Sprite):
-	def __init__(self, x, y, direction):
+	def __init__(self, x, y, direction, bulletType):
 		pygame.sprite.Sprite.__init__(self)
 		self.speed = 10
-		self.image = bullet_img
+		self.image = bulletType
 		self.rect = self.image.get_rect()
 		self.rect.center = (x, y)
 		self.direction = direction
@@ -522,7 +484,7 @@ class Bullet(pygame.sprite.Sprite):
 class Grenade(pygame.sprite.Sprite):
 	def __init__(self, x, y, direction):
 		pygame.sprite.Sprite.__init__(self)
-		self.timer = 100
+		self.timer = 60
 		self.vel_y = -11
 		self.speed = 7
 		self.image = grenade_img
@@ -631,6 +593,9 @@ class ScreenFade():
 			pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
 		if self.fade_counter >= SCREEN_WIDTH:
 			fade_complete = True
+		if fade_complete and self.colour == PINK:
+			draw_text('Current Time: ' + str(current_best_time) + ' seconds', font, WHITE, SCREEN_WIDTH // 5 - 100, 30)
+		# 	draw_text('High Score Time: ' + timer_text, font, WHITE, SCREEN_WIDTH // 5 - 100, 70)
 
 		return fade_complete
 
@@ -677,7 +642,7 @@ run = True
 while run:
 
 	clock.tick(FPS)
-
+    #Start and Exit Screen
 	if start_game == False:
 		#draw menu
 		screen.fill(BG)
@@ -695,14 +660,17 @@ while run:
 		#show player health
 		health_bar.draw(player.health)
 		#show ammo
-		draw_text('AMMO: ', font, WHITE, 10, 35)
+		draw_text('Magic:', font, WHITE, 5, 30)
 		for x in range(player.ammo):
-			screen.blit(bullet_img, (90 + (x * 10), 40))
+			screen.blit(player_bullet_img, (110 + (x * 10), 50))
 		#show grenades
-		draw_text('GRENADES: ', font, WHITE, 10, 60)
+		draw_text('Potions:', font, WHITE, 5, 60)
 		for x in range(player.grenades):
-			screen.blit(grenade_img, (135 + (x * 15), 60))
+			screen.blit(grenade_img, (115 + (x * 15), 80))
 
+		#start Timer for when player is alive
+		if player.alive:
+			screen.blit(timer_text, (300, 10))
 
 		player.update()
 		player.draw()
@@ -716,10 +684,10 @@ while run:
 		bullet_group.update()
 		grenade_group.update()
 		explosion_group.update()
-		item_box_group.update()
-		decoration_group.update()
-		water_group.update()
-		exit_group.update()
+		item_box_group.update(screen_scroll, player)
+		decoration_group.update(screen_scroll)
+		water_group.update(screen_scroll)
+		exit_group.update(screen_scroll)
 		bullet_group.draw(screen)
 		grenade_group.draw(screen)
 		explosion_group.draw(screen)
@@ -734,12 +702,11 @@ while run:
 				start_intro = False
 				intro_fade.fade_counter = 0
 
-
 		#update player actions
 		if player.alive:
 			#shoot bullets
 			if shoot:
-				player.shoot()
+				player.shoot(True)
 			#throw grenades
 			elif grenade and grenade_thrown == False and player.grenades > 0:
 				grenade = Grenade(player.rect.centerx + (0.5 * player.rect.size[0] * player.direction),\
@@ -793,6 +760,16 @@ while run:
 		#quit game
 		if event.type == pygame.QUIT:
 			run = False
+		if event.type == timer and player.alive:  # checks for timer event
+			if timer_sec > 0:
+				timer_sec -= 1
+				timer_text = font.render(str(datetime.timedelta(seconds=timer_sec)), True, (255, 255, 255))
+			else:
+				pygame.time.set_timer(timer, 0)  # turns off timer event
+		if event.type == timer and not player.alive:
+			if timer_sec != 360:
+				current_best_time = timer_sec
+			timer_sec = 360
 		#keyboard presses
 		if event.type == pygame.KEYDOWN:
 			if event.key == pygame.K_a:
