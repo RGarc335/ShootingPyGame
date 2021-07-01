@@ -5,6 +5,7 @@ import random
 import csv
 import button
 import yaml
+import datetime
 import Water
 import Exit
 import Decoration
@@ -40,6 +41,9 @@ level = config.get("level")
 start_game = config.get("start_game")
 start_intro = config.get("start_intro")
 
+# counter, text = 10, '10'.rjust(3)
+# pygame.time.set_timer(pygame.USEREVENT, 1000)
+start_ticks = pygame.time.get_ticks()  # starter tick
 
 #define player action variables
 moving_left = False
@@ -93,7 +97,6 @@ item_boxes = {
 	'Grenade'	: grenade_box_img
 }
 
-
 #define colours
 BG = (144, 201, 120)
 RED = (255, 0, 0)
@@ -104,6 +107,13 @@ PINK = (235, 65, 54)
 
 #define font
 font = pygame.font.SysFont('Futura', 30)
+
+#timer clock
+timer_sec = 360
+timer_text = font.render("02:00", True, (255, 255, 255))
+timer = pygame.USEREVENT + 1
+pygame.time.set_timer(timer, 1000)
+current_best_time = 0
 
 def draw_text(text, font, text_col, x, y):
 	img = font.render(text, True, text_col)
@@ -583,6 +593,9 @@ class ScreenFade():
 			pygame.draw.rect(screen, self.colour, (0, 0, SCREEN_WIDTH, 0 + self.fade_counter))
 		if self.fade_counter >= SCREEN_WIDTH:
 			fade_complete = True
+		if fade_complete and self.colour == PINK:
+			draw_text('Current Time: ' + str(current_best_time) + ' seconds', font, WHITE, SCREEN_WIDTH // 5 - 100, 30)
+		# 	draw_text('High Score Time: ' + timer_text, font, WHITE, SCREEN_WIDTH // 5 - 100, 70)
 
 		return fade_complete
 
@@ -655,6 +668,9 @@ while run:
 		for x in range(player.grenades):
 			screen.blit(grenade_img, (115 + (x * 15), 80))
 
+		#start Timer for when player is alive
+		if player.alive:
+			screen.blit(timer_text, (300, 10))
 
 		player.update()
 		player.draw()
@@ -686,7 +702,6 @@ while run:
 				start_intro = False
 				intro_fade.fade_counter = 0
 
-
 		#update player actions
 		if player.alive:
 			#shoot bullets
@@ -701,7 +716,6 @@ while run:
 				player.grenades -= 1
 				grenade_thrown = True
 			if player.in_air:
-
 				player.update_action(2)#2: jump
 			elif moving_left or moving_right:
 				player.update_action(1)#1: run
@@ -746,6 +760,16 @@ while run:
 		#quit game
 		if event.type == pygame.QUIT:
 			run = False
+		if event.type == timer and player.alive:  # checks for timer event
+			if timer_sec > 0:
+				timer_sec -= 1
+				timer_text = font.render(str(datetime.timedelta(seconds=timer_sec)), True, (255, 255, 255))
+			else:
+				pygame.time.set_timer(timer, 0)  # turns off timer event
+		if event.type == timer and not player.alive:
+			if timer_sec != 360:
+				current_best_time = timer_sec
+			timer_sec = 360
 		#keyboard presses
 		if event.type == pygame.KEYDOWN:
 			if event.key == pygame.K_a:
