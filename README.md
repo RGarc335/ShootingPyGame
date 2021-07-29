@@ -10,3 +10,6 @@ The game is designed to run on python 3.9 and pygame,
 
 To run game you need to run 
 python3.9 "Wizard Adventure Game/MainGame.py"
+
+Review requirements.txt for details on python dependencies to install.
+venv is for reference only, please recreate your virtual environment.
