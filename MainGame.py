@@ -102,6 +102,7 @@ BG = (144, 201, 120)
 RED = (255, 0, 0)
 WHITE = (255, 255, 255)
 GREEN = (0, 255, 0)
+BLUE = (0, 0, 255)
 BLACK = (0, 0, 0)
 PINK = (235, 65, 54)
 
@@ -109,11 +110,17 @@ PINK = (235, 65, 54)
 font = pygame.font.SysFont('Futura', 30)
 
 #timer clock
-timer_sec = 360
+set_max_time = config.get("TIMER")
+timer_sec = set_max_time
 timer_text = font.render("02:00", True, (255, 255, 255))
 timer = pygame.USEREVENT + 1
 pygame.time.set_timer(timer, 1000)
 current_best_time = 0
+current_time = 0
+
+#score system
+score_text = font.render("000000", True, (255, 255, 255))
+
 
 def draw_text(text, font, text_col, x, y):
 	img = font.render(text, True, text_col)
@@ -121,7 +128,7 @@ def draw_text(text, font, text_col, x, y):
 
 
 def draw_bg():
-	screen.fill(BG)
+	screen.fill(BLUE)
 	width = sky_img.get_width()
 	for x in range(5):
 		screen.blit(sky_img, ((x * width) - bg_scroll * 0.5, 0))
@@ -150,12 +157,28 @@ def reset_level():
 	return data
 
 
+class Score:
+	def __init__(self, enemy_groups, levels_completed):
+		self.enemy_list = enemy_groups
+		self.enemy_score = 0
+		self.levels = levels_completed
+		self.score = 0
+		self.enemy_base_score = config.get("ENEMY_SCORE")
+		self.level_base_score = config.get("LEVEL_SCORE")
+
+	def get_current_score(self):
+		for sprite_e in self.enemy_list:
+			if not Soldier.is_sprite_alive(sprite_e):
+				self.enemy_score += self.enemy_base_score
+			self.enemy_list.remove(sprite_e)
+		self.score = (self.levels * self.level_base_score) + self.enemy_score
+		return self.score
 
 
 class Soldier(pygame.sprite.Sprite):
 	def __init__(self, char_type, x, y, scale, speed, ammo, grenades):
 		pygame.sprite.Sprite.__init__(self)
-		self.alive = True
+		self.is_alive = True
 		self.char_type = char_type
 		self.speed = speed
 		self.ammo = ammo
@@ -305,7 +328,7 @@ class Soldier(pygame.sprite.Sprite):
 
 
 	def ai(self):
-		if self.alive and player.alive:
+		if self.is_alive and player.is_alive:
 			if self.idling == False and random.randint(1, 200) == 1:
 				self.update_action(0)#0: idle
 				self.idling = True
@@ -357,8 +380,6 @@ class Soldier(pygame.sprite.Sprite):
 			else:
 				self.frame_index = 0
 
-
-
 	def update_action(self, new_action):
 		#check if the new action is different to the previous one
 		if new_action != self.action:
@@ -367,21 +388,21 @@ class Soldier(pygame.sprite.Sprite):
 			self.frame_index = 0
 			self.update_time = pygame.time.get_ticks()
 
-
-
 	def check_alive(self):
 		if self.health <= 0:
 			self.health = 0
 			self.speed = 0
-			self.alive = False
+			self.is_alive = False
 			self.update_action(3)
 
+	def is_sprite_alive(self):
+		return self.is_alive
 
 	def draw(self):
 		screen.blit(pygame.transform.flip(self.image, self.flip, False), self.rect)
 
 
-class World():
+class World:
 	def __init__(self):
 		self.obstacle_list = []
 
@@ -470,7 +491,7 @@ class Bullet(pygame.sprite.Sprite):
 
 		#check collision with characters
 		if pygame.sprite.spritecollide(player, bullet_group, False):
-			if player.alive:
+			if player.is_alive:
 				player.health -= 5
 				self.kill()
 		for enemy in enemy_group:
@@ -515,7 +536,7 @@ class Grenade(pygame.sprite.Sprite):
 				#check if above the ground, i.e. falling
 				elif self.vel_y >= 0:
 					self.vel_y = 0
-					dy = tile[1].top - self.rect.bottom	
+					dy = tile[1].top - self.rect.bottom
 
 
 		#update grenade position
@@ -594,8 +615,10 @@ class ScreenFade():
 		if self.fade_counter >= SCREEN_WIDTH:
 			fade_complete = True
 		if fade_complete and self.colour == PINK:
-			draw_text('Current Time: ' + str(current_best_time) + ' seconds', font, WHITE, SCREEN_WIDTH // 5 - 100, 30)
-		# 	draw_text('High Score Time: ' + timer_text, font, WHITE, SCREEN_WIDTH // 5 - 100, 70)
+			end_score = Score(enemy_group.sprites(), level)
+			draw_text('Current Time: ' + str(current_time) + ' seconds', font, WHITE, SCREEN_WIDTH // 5 - 100, 30)
+			draw_text('Current Best Time: ' + str(current_best_time) + ' seconds', font, WHITE, SCREEN_WIDTH // 5 - 100, 70)
+			draw_text('Current Score: ' + str(end_score.get_current_score()), font, WHITE, SCREEN_WIDTH // 5 - 100, 110)
 
 		return fade_complete
 
@@ -607,7 +630,7 @@ death_fade = ScreenFade(2, PINK, 4)
 
 #create buttons
 start_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 - 150, start_img, 1)
-exit_button = button.Button(SCREEN_WIDTH // 2 - 110, SCREEN_HEIGHT // 2 + 50, exit_img, 1)
+exit_button = button.Button(SCREEN_WIDTH // 2 - 130, SCREEN_HEIGHT // 2 + 50, exit_img, 1)
 restart_button = button.Button(SCREEN_WIDTH // 2 - 100, SCREEN_HEIGHT // 2 - 50, restart_img, 2)
 
 #create sprite groups
@@ -637,7 +660,6 @@ world = World()
 player, health_bar = world.process_data(world_data)
 
 
-
 run = True
 while run:
 
@@ -645,7 +667,7 @@ while run:
     #Start and Exit Screen
 	if start_game == False:
 		#draw menu
-		screen.fill(BG)
+		screen.fill(BLUE)
 		#add buttons
 		if start_button.draw(screen):
 			start_game = True
@@ -669,7 +691,7 @@ while run:
 			screen.blit(grenade_img, (115 + (x * 15), 80))
 
 		#start Timer for when player is alive
-		if player.alive:
+		if player.is_alive:
 			screen.blit(timer_text, (300, 10))
 
 		player.update()
@@ -703,7 +725,7 @@ while run:
 				intro_fade.fade_counter = 0
 
 		#update player actions
-		if player.alive:
+		if player.is_alive:
 			#shoot bullets
 			if shoot:
 				player.shoot(True)
@@ -737,7 +759,7 @@ while run:
 							for y, tile in enumerate(row):
 								world_data[x][y] = int(tile)
 					world = World()
-					player, health_bar = world.process_data(world_data)	
+					player, health_bar = world.process_data(world_data)
 		else:
 			screen_scroll = 0
 			if death_fade.fade():
@@ -745,6 +767,7 @@ while run:
 					death_fade.fade_counter = 0
 					start_intro = True
 					bg_scroll = 0
+					level = 1
 					world_data = reset_level()
 					#load in level data and create world
 					with open(f'level{level}_data.csv', newline='') as csvfile:
@@ -755,21 +778,22 @@ while run:
 					world = World()
 					player, health_bar = world.process_data(world_data)
 
-
 	for event in pygame.event.get():
 		#quit game
 		if event.type == pygame.QUIT:
 			run = False
-		if event.type == timer and player.alive:  # checks for timer event
+		if event.type == timer and player.is_alive and start_game == True:  # checks for timer event
 			if timer_sec > 0:
 				timer_sec -= 1
 				timer_text = font.render(str(datetime.timedelta(seconds=timer_sec)), True, (255, 255, 255))
 			else:
 				pygame.time.set_timer(timer, 0)  # turns off timer event
-		if event.type == timer and not player.alive:
-			if timer_sec != 360:
-				current_best_time = timer_sec
-			timer_sec = 360
+		if event.type == timer and not player.is_alive:
+			if timer_sec != set_max_time:
+				current_time = set_max_time - timer_sec
+				if current_time <= current_best_time or current_best_time == 0:
+					current_best_time = current_time
+			timer_sec = set_max_time
 		#keyboard presses
 		if event.type == pygame.KEYDOWN:
 			if event.key == pygame.K_a:
@@ -780,7 +804,7 @@ while run:
 				shoot = True
 			if event.key == pygame.K_q:
 				grenade = True
-			if event.key == pygame.K_w and player.alive:
+			if event.key == pygame.K_w and player.is_alive:
 				player.jump = True
 				jump_fx.play()
 			if event.key == pygame.K_ESCAPE:
